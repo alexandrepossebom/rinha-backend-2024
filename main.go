@@ -9,7 +9,6 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
-	"time"
 
 	"github.com/alexandrepossebom/rinha-backend-2024/handlers"
 	"github.com/alexandrepossebom/rinha-backend-2024/repo"
@@ -38,19 +37,13 @@ func main() {
 	}
 	defer connPool.Close()
 
-	if err := connPool.Ping(context.Background()); err != nil {
-		log.Fatal(err)
-	}
-
-	log.Println("Connected to the database!!")
-
 	handler := handlers.NewHandler(repo.NewRepository(connPool))
 	mux := http.NewServeMux()
 
 	mux.HandleFunc("POST /clientes/{id}/transacoes", handler.NewTransacaoHandler)
 	mux.HandleFunc("GET /clientes/{id}/extrato", handler.NewExtratoHandler)
 
-	srv := http.Server{Addr: fmt.Sprintf(":%s", port), Handler: mux, ReadHeaderTimeout: 1 * time.Second}
+	srv := http.Server{Addr: fmt.Sprintf(":%s", port), Handler: mux}
 
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
@@ -61,7 +54,7 @@ func main() {
 		}
 	}()
 
-	log.Println("Server started")
+	log.Printf("Server started on port %s\n", port)
 
 	<-ctx.Done()
 	if err := srv.Shutdown(context.TODO()); err != nil {
