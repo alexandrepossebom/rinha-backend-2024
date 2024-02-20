@@ -29,8 +29,9 @@ func main() {
 		log.Fatal(err)
 	}
 
-	dbConfig.MaxConns = 5
-	dbConfig.MinConns = 2
+	dbConfig.MaxConns = 25
+	dbConfig.MinConns = 25
+
 	connPool, err := pgxpool.NewWithConfig(context.Background(), dbConfig)
 	if err != nil {
 		log.Fatal(err)
