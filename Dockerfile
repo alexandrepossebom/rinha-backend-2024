@@ -6,7 +6,6 @@ WORKDIR /app
 
 COPY . .
 
-RUN go version
 RUN go build -ldflags="-w -s" .
 
 FROM alpine:3

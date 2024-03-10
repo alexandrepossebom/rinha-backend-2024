@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"github.com/alexandrepossebom/rinha-backend-2024/handlers"
 	"github.com/alexandrepossebom/rinha-backend-2024/repo"
@@ -29,14 +30,27 @@ func main() {
 		log.Fatal(err)
 	}
 
-	dbConfig.MaxConns = 25
-	dbConfig.MinConns = 25
+	dbConfig.MaxConns = 5
+	dbConfig.MinConns = 5
 
 	connPool, err := pgxpool.NewWithConfig(context.Background(), dbConfig)
 	if err != nil {
 		log.Fatal(err)
 	}
 	defer connPool.Close()
+
+	err = connPool.Ping(context.Background())
+	for i := 0; i < 30 && err != nil; i++ {
+		fmt.Printf("Database not connected, retrying (%d/30)\n", i+1)
+		err = connPool.Ping(context.Background())
+		time.Sleep(1 * time.Second)
+	}
+	if err != nil {
+		log.Println("Database not connected, exiting")
+		log.Fatal(err)
+	}
+
+	log.Println("Database connected")
 
 	handler := handlers.NewHandler(repo.NewRepository(connPool))
 	mux := http.NewServeMux()

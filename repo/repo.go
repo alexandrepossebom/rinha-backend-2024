@@ -46,7 +46,7 @@ func (r *repository) GetCliente(ctx context.Context, id uint32) *model.Cliente {
 
 func (r *repository) GetTransacoes(ctx context.Context, id uint32) []model.Transacao {
 	transacoes := make([]model.Transacao, 0, 10)
-	sqlStatement := `SELECT valor, tipo, descricao, realizada_em FROM transacoes t WHERE cliente_id = $1 ORDER BY realizada_em DESC LIMIT 10`
+	sqlStatement := `SELECT valor, tipo, descricao, realizada_em FROM transacoes t WHERE cliente_id = $1 ORDER BY id DESC LIMIT 10`
 	rows, err := r.db.Query(ctx, sqlStatement, id)
 	if err != nil {
 		return transacoes
@@ -65,30 +65,20 @@ func (r *repository) GetTransacoes(ctx context.Context, id uint32) []model.Trans
 
 func (r *repository) AddTransacao(ctx context.Context, id uint32, t *model.TransacaoPost) (model.TransacaoReply, error) {
 	var tr model.TransacaoReply
-	tx, err := r.db.Begin(ctx)
-	if err != nil {
-		return tr, err
-	}
-	defer tx.Rollback(ctx)
 
 	valor := t.Valor
 	if t.Tipo == "d" {
 		valor = -t.Valor
 	}
+
 	var saldo, limite int32
-	sqlStatement := `UPDATE clientes SET saldo = saldo + $1 WHERE id = $2 RETURNING saldo, limite`
-	err = tx.QueryRow(ctx, sqlStatement, valor, id).Scan(&saldo, &limite)
+	err := r.db.QueryRow(ctx, `UPDATE clientes SET saldo = saldo + $1 WHERE id = $2 RETURNING saldo, limite`, valor, id).Scan(&saldo, &limite)
 	if err != nil {
 		return tr, ErrLimite
 	}
 
-	sqlStatement = `INSERT INTO transacoes (valor, tipo, descricao, cliente_id) VALUES ($1, $2, $3, $4)`
-	_, err = tx.Exec(ctx, sqlStatement, t.Valor, t.Tipo, t.Descricao, id)
+	_, err = r.db.Exec(ctx, `INSERT INTO transacoes (valor, tipo, descricao, cliente_id) VALUES ($1, $2, $3, $4)`, t.Valor, t.Tipo, t.Descricao, id)
 	if err != nil {
-		return tr, err
-	}
-
-	if err = tx.Commit(ctx); err != nil {
 		return tr, err
 	}
 
@@ -97,3 +87,39 @@ func (r *repository) AddTransacao(ctx context.Context, id uint32, t *model.Trans
 
 	return tr, nil
 }
+
+// func (r *repository) AddTransacao(ctx context.Context, id uint32, t *model.TransacaoPost) (model.TransacaoReply, error) {
+// 	var tr model.TransacaoReply
+
+// 	valor := t.Valor
+// 	if t.Tipo == "d" {
+// 		valor = -t.Valor
+// 	}
+
+// 	batch := &pgx.Batch{}
+// 	var saldo, limite int32
+// 	batch.Queue(`UPDATE clientes SET saldo = saldo + $1 WHERE id = $2 RETURNING saldo, limite`, valor, id)
+// 	batch.Queue(`INSERT INTO transacoes (valor, tipo, descricao, cliente_id) VALUES ($1, $2, $3, $4)`, t.Valor, t.Tipo, t.Descricao, id)
+
+// 	br := r.db.SendBatch(ctx, batch)
+// 	defer br.Close()
+
+// 	rows, err := br.Query()
+// 	if err != nil {
+// 		log.Println(err)
+// 		return tr, err
+// 	}
+
+// 	if !rows.Next() {
+// 		return tr, ErrLimite
+// 	}
+
+// 	if err := rows.Scan(&saldo, &limite); err != nil {
+// 		return tr, err
+// 	}
+
+// 	tr.Saldo = saldo
+// 	tr.Limite = limite
+
+// 	return tr, nil
+// }
